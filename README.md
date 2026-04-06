@@ -9,8 +9,8 @@ Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
 | Backend | Python 3.11+, FastAPI, Pydantic, SQLAlchemy |
 | Base de datos | PostgreSQL (configurable por env vars) |
 | Contenedor | Docker (multi-stage, non-root) |
-| Orquestación | Kubernetes |
-| CI/CD | GitHub Actions → GHCR |
+| Orquestación | Kubernetes (DigitalOcean) |
+| CI/CD | GitHub Actions → GHCR → DOKS |
 
 ## Estructura del proyecto
 
@@ -20,7 +20,7 @@ Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
 │   │   └── health.py   # /livez y /readyz
 │   ├── core/           # Configuración, DB, logging
 │   │   ├── config.py
-│   │   ├── database.py
+│   │   ├── database.py  # Engine, sesión, base, y retry de conexión
 │   │   ├── dependencies.py
 │   │   └── logging.py
 │   ├── models/         # Entidades SQLAlchemy (vacío — extender aquí)
@@ -34,9 +34,12 @@ Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
 │   ├── run_tests.sh    # Wrapper para correr tests (Linux/macOS)
 │   └── run_tests.ps1   # Wrapper para correr tests (Windows)
 ├── k8s/
-│   ├── deployment.yaml
-│   ├── service.yaml
-│   └── secret.yaml     # ⚠️ Template — NO commitear valores reales
+│   ├── app-deployment.yaml   # Deployment del microservicio
+│   ├── app-service.yaml      # Service (ClusterIP) del microservicio
+│   ├── db-deployment.yaml    # Deployment de PostgreSQL
+│   ├── db-service.yaml       # Service (ClusterIP) de PostgreSQL
+│   ├── db-pvc.yaml           # PersistentVolumeClaim para la BD
+│   └── secret.yaml           # ⚠️ Template — NO commitear valores reales
 ├── .github/workflows/
 │   └── deploy.yml
 ├── Dockerfile              # Imagen de producción
@@ -66,6 +69,21 @@ cp .env.example .env
 
 # 5. Levantar la aplicación
 uvicorn src.main:app --reload
+```
+
+## Conectarse al cluster de DigitalOcean
+
+Requisitos:
+- Tener instalado [doctl](https://docs.digitalocean.com/reference/doctl/)
+- Tener instalado [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+```bash
+# 1. Iniciar sesión en doctl
+doctl auth init --context <NAME>
+doctl auth switch --context <NAME>
+
+# 2. Obtener credenciales del cluster
+doctl kubernetes cluster kubeconfig save <CLUSTER_ID>
 ```
 
 ## Endpoints disponibles
@@ -109,14 +127,49 @@ docker run -p 8000:8000 --env-file .env template-service
 
 ## Kubernetes
 
-```bash
-# 1. Crear el secret (editar k8s/secret.yaml primero con valores reales)
-kubectl apply -f k8s/secret.yaml
+Los manifiestos en `k8s/` despliegan el microservicio junto con su propia base de datos PostgreSQL dentro del cluster.
 
-# 2. Desplegar
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
+### Variables de entorno requeridas (GitHub Secrets)
+
+| Secret | Descripción |
+|--------|-------------|
+| `DIGITALOCEAN_ACCESS_TOKEN` | Personal Access Token de DigitalOcean |
+| `DB_USER` | Usuario de la base de datos |
+| `DB_PASSWORD` | Contraseña de la base de datos |
+| `DB_NAME` | Nombre de la base de datos |
+
+`DB_HOST` y `DB_PORT` están fijos en `k8s/secret.yaml` (`bazaar-db:5432`) ya que la BD corre dentro del cluster.
+Si se utilizase una base de datos externa, se deberían agregar las variables de entorno correspondientes.
+
+### Deploy manual
+
+```bash
+# Crear el namespace (solo la primera vez)
+kubectl create namespace bazaar-dev
+
+# Aplicar todos los manifiestos en orden
+kubectl apply -f k8s/db-pvc.yaml       -n bazaar-dev
+kubectl apply -f k8s/db-deployment.yaml -n bazaar-dev
+kubectl apply -f k8s/db-service.yaml    -n bazaar-dev
+kubectl apply -f k8s/secret.yaml        -n bazaar-dev
+kubectl apply -f k8s/app-deployment.yaml -n bazaar-dev
+kubectl apply -f k8s/app-service.yaml   -n bazaar-dev
 ```
+
+### CI/CD automático
+
+El pipeline en `.github/workflows/deploy.yml` corre automáticamente en cada push a `main`:
+
+| Job | Se ejecuta cuando cambia... |
+|-----|----------------------------|
+| `lint` | `src/`, `tests/`, archivos de build |
+| `test` | `src/`, `tests/`, archivos de build |
+| `build` | `src/`, `tests/`, archivos de build (solo push a main) |
+| `deploy` | `src/` **o** `k8s/` (solo push a main) |
+
+## Conexión a la base de datos
+
+Al iniciar, la aplicación espera a que la base de datos esté disponible usando **backoff exponencial** (1s → 2s → 4s → … hasta 30s por intento, máximo 5 minutos en total) antes de ejecutar las migraciones y aceptar tráfico. Esto evita crasheos durante el arranque del pod cuando la BD aún está inicializándose.
 
 ## Extender el template
 
