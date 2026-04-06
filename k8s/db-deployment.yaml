@@ -39,6 +39,8 @@ spec:
                 secretKeyRef:
                   name: bazaar-db-credentials
                   key: DB_NAME
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           # ── Probes ─────────────────────────────────
           livenessProbe:
             exec:
