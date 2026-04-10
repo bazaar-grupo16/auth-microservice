@@ -16,16 +16,21 @@ Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
 
 ```
 ├── src/
-│   ├── api/            # Routers de FastAPI
-│   │   └── health.py   # /livez y /readyz
+│   ├── api/
+│   │   ├── controllers/    # Lógica de manejo de requests
+│   │   ├── routers/        # Definición de rutas FastAPI
+│   │   └── health.py       # /livez y /readyz
 │   ├── core/           # Configuración, DB, logging
 │   │   ├── config.py
 │   │   ├── database.py  # Engine, sesión, base, y retry de conexión
 │   │   ├── dependencies.py
-│   │   └── logging.py
-│   ├── models/         # Entidades SQLAlchemy (vacío — extender aquí)
-│   ├── schemas/        # Modelos Pydantic (vacío — extender aquí)
-│   ├── services/       # Lógica de negocio (vacío — extender aquí)
+│   │   ├── logging.py
+│   │   └── utils.py    # Utilidades compartidas
+│   ├── exceptions/     # Tipos de excepción de dominio
+│   ├── models/         # Entidades SQLAlchemy
+│   ├── repositories/   # Acceso a datos
+│   ├── schemas/        # Modelos Pydantic
+│   ├── services/       # Lógica de negocio
 │   └── main.py         # Punto de entrada
 ├── tests/
 │   ├── conftest.py
@@ -41,6 +46,7 @@ Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
 │   ├── db-pvc.yaml           # PersistentVolumeClaim para la BD
 │   └── secret.yaml           # ⚠️ Template — NO commitear valores reales
 ├── .github/workflows/
+│   ├── ci-dev.yml      # Pipeline CI para la rama dev (lint, SAST, test)
 │   └── deploy.yml
 ├── Dockerfile              # Imagen de producción
 ├── Dockerfile.test         # Imagen para correr tests
@@ -158,7 +164,17 @@ kubectl apply -f k8s/app-service.yaml   -n bazaar-dev
 
 ### CI/CD automático
 
-El pipeline en `.github/workflows/deploy.yml` corre automáticamente en cada push a `main`:
+Hay dos pipelines de GitHub Actions:
+
+**`ci-dev.yml`** — corre en cada push/PR a `dev`:
+
+| Job | Descripción |
+|-----|-------------|
+| `lint` | Ruff sobre `src/` y `tests/` |
+| `sast` | Bandit (análisis estático de seguridad) sobre `src/` |
+| `test` | Tests contra PostgreSQL real vía Docker Compose |
+
+**`deploy.yml`** — corre en cada push a `main`:
 
 | Job | Se ejecuta cuando cambia... |
 |-----|----------------------------|
@@ -177,6 +193,8 @@ Para agregar una nueva entidad al microservicio:
 
 1. Crear el modelo SQLAlchemy en `src/models/`.
 2. Crear los schemas Pydantic en `src/schemas/`.
-3. Implementar la lógica de negocio en `src/services/`.
-4. Crear el router en `src/api/` e incluirlo en `src/main.py`.
-5. Agregar tests en `tests/`.
+3. Implementar el repositorio de acceso a datos en `src/repositories/`.
+4. Definir las excepciones de dominio en `src/exceptions/`.
+5. Implementar la lógica de negocio en `src/services/`.
+6. Crear el controller en `src/api/controllers/` y el router en `src/api/routers/`; incluir el router en `src/main.py`.
+7. Agregar tests en `tests/`.
