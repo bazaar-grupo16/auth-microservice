@@ -30,6 +30,9 @@ services:
       DB_USER: test_user
       DB_PASSWORD: test_password
       DB_NAME: test_db
+      SECRET_KEY: test_secret_key_for_jwt_minimum_32_chars
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: "60"
     depends_on:
       db:
         condition: service_healthy

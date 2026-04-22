@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # ── Application ──────────────────────────────────
     APP_NAME: str = "template-service"
     LOG_LEVEL: str = "info"
+    SECRET_KEY: str
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60
 
     # ── Database ─────────────────────────────────────
     DB_HOST: str
