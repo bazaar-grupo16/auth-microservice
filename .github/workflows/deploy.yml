@@ -128,12 +128,15 @@ jobs:
         env:
           IMAGE_TAG: ${{ github.sha }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
         run: |
           sudo apt-get install -y gettext-base
           for f in k8s/*.yaml; do
-            envsubst '${IMAGE_NAME} ${IMAGE_TAG} ${DB_USER} ${DB_PASSWORD} ${DB_NAME}' \
+            envsubst '${IMAGE_NAME} ${IMAGE_TAG} ${SECRET_KEY} ${DB_HOST} ${DB_PORT} ${DB_USER} ${DB_PASSWORD} ${DB_NAME}' \
               < "$f" | kubectl apply -f - -n bazaar-dev
           done
