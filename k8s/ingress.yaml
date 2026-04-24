@@ -1,0 +1,24 @@
+# ──────────────────────────────────────────────────────────────
+# Kubernetes Ingress — Public refresh token endpoint
+#
+# Exposes only POST /token/refresh to the auth-service.
+# Other service paths can remain protected by their own ingress rules.
+# ──────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: auth-service-public
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /token/refresh
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
