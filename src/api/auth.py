@@ -2,13 +2,16 @@
 
 from fastapi import APIRouter, Header, HTTPException, status
 
+from src.core.dependencies import DbSession
 from src.schemas.auth import (
     TokenCreateRequest,
     TokenCreateResponse,
+    TokenRefreshRequest,
 )
 from src.services.jwt_service import (
     TokenValidationError,
-    generate_access_token,
+    issue_token_pair,
+    rotate_refresh_token,
     validate_access_token,
 )
 
@@ -22,10 +25,38 @@ router = APIRouter(tags=["Auth"])
     status_code=status.HTTP_201_CREATED,
     summary="Generate an access token",
 )
-async def create_token(payload: TokenCreateRequest) -> TokenCreateResponse:
+async def create_token(payload: TokenCreateRequest, db: DbSession) -> TokenCreateResponse:
     """Issue a JWT signed with the service secret key."""
-    access_token, expires_in = generate_access_token(payload.user_id)
-    return TokenCreateResponse(access_token=access_token, expires_in=expires_in)
+    tokens = issue_token_pair(payload.user_id, db)
+    return TokenCreateResponse(
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+        expires_in=tokens.expires_in,
+        refresh_expires_in=tokens.refresh_expires_in,
+    )
+
+
+@router.post(
+    "/token/refresh",
+    response_model=TokenCreateResponse,
+    summary="Refresh an access token",
+)
+async def refresh_token(payload: TokenRefreshRequest, db: DbSession) -> TokenCreateResponse:
+    """Rotate refresh token and issue a new access/refresh token pair."""
+    try:
+        tokens = rotate_refresh_token(payload.refresh_token, db)
+    except TokenValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+
+    return TokenCreateResponse(
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+        expires_in=tokens.expires_in,
+        refresh_expires_in=tokens.refresh_expires_in,
+    )
 
 
 @router.get(
