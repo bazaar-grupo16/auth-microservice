@@ -1,6 +1,7 @@
 """Authentication endpoints for JWT generation and validation."""
 
 from fastapi import APIRouter, Header, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from src.core.dependencies import DbSession
 from src.schemas.auth import (
@@ -64,7 +65,7 @@ async def refresh_token(payload: TokenRefreshRequest, db: DbSession) -> TokenCre
     status_code=status.HTTP_200_OK,
     summary="Validate an access token",
 )
-async def validate_token(authorization: str | None = Header(default=None)) -> dict[str, str]:
+async def validate_token(authorization: str | None = Header(default=None)) -> JSONResponse:
     """Validate JWT from Authorization header for reverse-proxy auth checks."""
     if not authorization:
         raise HTTPException(
@@ -87,4 +88,8 @@ async def validate_token(authorization: str | None = Header(default=None)) -> di
             detail=str(exc),
         ) from exc
 
-    return {"status": "valid", "user_id": str(user_id)}
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"status": "valid", "user_id": str(user_id)},
+        headers={"X-User-ID": str(user_id)},
+    )
