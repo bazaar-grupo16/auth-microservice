@@ -12,8 +12,12 @@ spec:
   ingress:
     - from:
         - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: bazaar-dev
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - bazaar-dev
+                  - ingress-nginx
       ports:
         - protocol: TCP
           port: 8000
