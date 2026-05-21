@@ -1,6 +1,6 @@
-# Bazaar — Microservice Template
+# Bazaar — Authentication Service
 
-Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
+Microservicio de autenticación y autorización basado en Python / FastAPI del ecosistema **Bazaar**. Proporciona generación, validación y rotación de tokens JWT para proteger otros microservicios.
 
 ## Stack
 
@@ -55,11 +55,19 @@ Template base para microservicios Python / FastAPI del ecosistema **Bazaar**.
 └── .env.example
 ```
 
+## Descripción del servicio
+
+Este Authentication Service es responsable de:
+- **Generar tokens JWT** para autenticar usuarios
+- **Validar tokens** desde otros microservicios
+- **Rotar refresh tokens** de forma segura
+- Actuar como **Authorization Server** centralizado para el ecosistema Bazaar
+
 ## Setup local
 
 ```bash
 # 1. Clonar y entrar al directorio
-git clone <REPO_URL> && cd template-microservice
+git clone <REPO_URL> && cd auth-microservice
 
 # 2. Crear entorno virtual
 python -m venv .venv
@@ -94,12 +102,22 @@ doctl kubernetes cluster kubeconfig save <CLUSTER_ID>
 
 ## Endpoints disponibles
 
+### Health Checks
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/livez` | Liveness probe — siempre 200 |
-| GET | `/readyz` | Readiness probe — verifica conexión a DB |
-| GET | `/docs` | Swagger UI (auto-generado) |
-| GET | `/redoc` | ReDoc (auto-generado) |
+| GET | `/livez` | Liveness probe — verifica que el proceso está vivo (siempre 200) |
+| GET | `/readyz` | Readiness probe — verifica conexión a la base de datos |
+
+### Autenticación (Auth Service)
+| Método | Ruta | Descripción | Request | Response |
+|--------|------|-------------|---------|----------|
+| POST | `/token` | Genera un par de tokens JWT (acceso + refresh) | `{"user_id": "uuid"}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 3600, "refresh_expires_in": 604800}` |
+| POST | `/token/refresh` | Rota el refresh token e emite nuevos tokens | `{"refresh_token": "..."}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 3600, "refresh_expires_in": 604800}` |
+| GET | `/validate` | Valida un access token desde el header Authorization | Header: `Authorization: Bearer <token>` | `{"status": "valid", "user_id": "uuid"}` + header `X-User-ID` |
+
+**Documentación interactiva:**
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
 ## Tests
 
@@ -127,15 +145,37 @@ docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 ## Docker
 
 ```bash
-docker build -t template-service .
-docker run -p 8000:8000 --env-file .env template-service
+docker build -t auth-service .
+docker run -p 8000:8000 --env-file .env auth-service
 ```
+
+## Variables de entorno
+
+Las variables de entorno se deben configurar en el archivo `.env` (copia de `.env.example`).
+
+### Variables requeridas (Aplicación)
+
+| Variable | Tipo | Descripción | Ejemplo |
+|----------|------|-------------|---------|
+| `APP_NAME` | string | Nombre de la aplicación | `auth-service` |
+| `LOG_LEVEL` | string | Nivel de logging (debug, info, warning, error) | `info` |
+| `DB_HOST` | string | Host de la base de datos PostgreSQL | `localhost` |
+| `DB_PORT` | int | Puerto de la base de datos | `5432` |
+| `DB_USER` | string | Usuario de la base de datos | `your_db_user` |
+| `DB_PASSWORD` | string | Contraseña de la base de datos | `your_db_password` |
+| `DB_NAME` | string | Nombre de la base de datos | `bazaar_auth` |
+| `SECRET_KEY` | string | Clave secreta para firmar JWTs | `your-secret-key-here` |
+| `JWT_ALGORITHM` | string | Algoritmo de firma JWT | `HS256` |
+| `JWT_EXPIRE_MINUTES` | int | Tiempo de expiración del access token (minutos) | `60` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | int | Tiempo de expiración del refresh token (días) | `7` |
 
 ## Kubernetes
 
 Los manifiestos en `k8s/` despliegan el microservicio junto con su propia base de datos PostgreSQL dentro del cluster.
 
-### Variables de entorno requeridas (GitHub Secrets)
+### Variables de entorno para GitHub Secrets
+
+Estas variables se configuran en GitHub y se usan en los workflows de CI/CD:
 
 | Secret | Descripción |
 |--------|-------------|
@@ -143,9 +183,13 @@ Los manifiestos en `k8s/` despliegan el microservicio junto con su propia base d
 | `DB_USER` | Usuario de la base de datos |
 | `DB_PASSWORD` | Contraseña de la base de datos |
 | `DB_NAME` | Nombre de la base de datos |
+| `SECRET_KEY` | Clave secreta para firmar JWTs |
+| `JWT_ALGORITHM` | Algoritmo de firma JWT |
+| `JWT_EXPIRE_MINUTES` | Tiempo de expiración del access token |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Tiempo de expiración del refresh token |
 
-`DB_HOST` y `DB_PORT` están fijos en `k8s/secret.yaml` (`bazaar-db:5432`) ya que la BD corre dentro del cluster.
-Si se utilizase una base de datos externa, se deberían agregar las variables de entorno correspondientes.
+> **Nota:** `DB_HOST` y `DB_PORT` están fijos en `k8s/secret.yaml` (`bazaar-db:5432`) ya que la BD corre dentro del cluster.
+> Si se utilizase una base de datos externa, se deberían agregar las variables de entorno correspondientes.
 
 ### Deploy manual
 
