@@ -99,7 +99,7 @@ class TestRevokeEndpoint:
     def test_revoke_does_not_affect_other_users(self, client: TestClient) -> None:
         user_a = uuid.uuid4()
         user_b = uuid.uuid4()
-        tokens_a = client.post("/token", json={"user_id": str(user_a)}).json()
+        client.post("/token", json={"user_id": str(user_a)})
         tokens_b = client.post("/token", json={"user_id": str(user_b)}).json()
 
         client.delete(f"/token/{user_a}")
