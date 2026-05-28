@@ -1,5 +1,7 @@
 """Authentication endpoints for JWT generation and validation."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
@@ -12,6 +14,7 @@ from src.schemas.auth import (
 from src.services.jwt_service import (
     TokenValidationError,
     issue_token_pair,
+    revoke_user_tokens,
     rotate_refresh_token,
     validate_access_token,
 )
@@ -58,6 +61,16 @@ async def refresh_token(payload: TokenRefreshRequest, db: DbSession) -> TokenCre
         expires_in=tokens.expires_in,
         refresh_expires_in=tokens.refresh_expires_in,
     )
+
+
+@router.delete(
+    "/token/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke all tokens for a user",
+)
+async def revoke_tokens(user_id: UUID, db: DbSession) -> None:
+    """Revoke all active refresh tokens for a user. Called internally on logout or ban."""
+    revoke_user_tokens(user_id, db)
 
 
 @router.get(
