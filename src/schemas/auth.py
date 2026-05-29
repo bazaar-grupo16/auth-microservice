@@ -9,6 +9,7 @@ class TokenCreateRequest(BaseModel):
     """Payload used to mint an access token for a user."""
 
     user_id: UUID
+    is_admin: bool
 
 
 class TokenCreateResponse(BaseModel):

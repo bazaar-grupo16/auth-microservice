@@ -33,6 +33,14 @@ class TokenPair:
     refresh_expires_in: int
 
 
+@dataclass(frozen=True)
+class AccessTokenClaims:
+    """Claims extracted from a validated access token."""
+
+    user_id: UUID
+    is_admin: bool
+
+
 def _encode_token(payload: dict[str, object]) -> str:
     """Sign and encode a JWT payload using configured algorithm and secret."""
     settings = get_settings()
@@ -69,7 +77,7 @@ def _token_hash(token: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest()
 
 
-def issue_token_pair(user_id: UUID, db: Session) -> TokenPair:
+def issue_token_pair(user_id: UUID, is_admin: bool, db: Session) -> TokenPair:
     """Issue access and refresh tokens and persist hashed refresh token."""
     settings = get_settings()
     now = datetime.now(timezone.utc)
@@ -78,6 +86,7 @@ def issue_token_pair(user_id: UUID, db: Session) -> TokenPair:
     access_payload: dict[str, object] = {
         "sub": str(user_id),
         "type": "access",
+        "is_admin": is_admin,
         "iat": now,
         "exp": now + access_expires_delta,
     }
@@ -88,6 +97,7 @@ def issue_token_pair(user_id: UUID, db: Session) -> TokenPair:
     refresh_payload: dict[str, object] = {
         "sub": str(user_id),
         "type": "refresh",
+        "is_admin": is_admin,
         "jti": refresh_token_id,
         "iat": now,
         "exp": now + refresh_expires_delta,
@@ -130,6 +140,8 @@ def rotate_refresh_token(refresh_token: str, db: Session) -> TokenPair:
     except ValueError as exc:
         raise TokenValidationError("Token subject is not a valid UUID") from exc
 
+    is_admin = bool(payload.get("is_admin", False))
+
     row = get_refresh_token_by_id(db, token_id)
     if row is None:
         raise TokenValidationError("Refresh token is not recognized")
@@ -141,7 +153,7 @@ def rotate_refresh_token(refresh_token: str, db: Session) -> TokenPair:
         raise TokenValidationError("Refresh token is invalid")
 
     revoke_refresh_token(db, row)
-    return issue_token_pair(user_id, db)
+    return issue_token_pair(user_id, is_admin, db)
 
 
 def revoke_user_tokens(user_id: UUID, db: Session) -> None:
@@ -149,8 +161,8 @@ def revoke_user_tokens(user_id: UUID, db: Session) -> None:
     revoke_all_refresh_tokens_for_user(db, str(user_id))
 
 
-def validate_access_token(token: str) -> UUID:
-    """Validate a signed JWT and return the UUID from the ``sub`` claim."""
+def validate_access_token(token: str) -> AccessTokenClaims:
+    """Validate a signed JWT and return claims from the access token."""
     payload = _decode_token(token)
 
     token_type = payload.get("type")
@@ -162,6 +174,9 @@ def validate_access_token(token: str) -> UUID:
         raise TokenValidationError("Token is missing subject claim")
 
     try:
-        return UUID(str(user_id_claim))
+        user_id = UUID(str(user_id_claim))
     except ValueError as exc:
         raise TokenValidationError("Token subject is not a valid UUID") from exc
+
+    is_admin = bool(payload.get("is_admin", False))
+    return AccessTokenClaims(user_id=user_id, is_admin=is_admin)
