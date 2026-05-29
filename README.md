@@ -61,7 +61,17 @@ Este Authentication Service es responsable de:
 - **Generar tokens JWT** para autenticar usuarios
 - **Validar tokens** desde otros microservicios
 - **Rotar refresh tokens** de forma segura
+- **Revocar tokens** de un usuario (logout, ban)
 - Actuar como **Authorization Server** centralizado para el ecosistema Bazaar
+
+### Estrategia de tokens
+
+El servicio usa un esquema de doble token:
+
+- **Access token (JWT, 5 min):** stateless — cualquier servicio lo valida verificando la firma criptográfica, sin tocar la base de datos. Vida corta para limitar el daño ante robo.
+- **Refresh token (opaco, 7 días):** almacenado en la base de datos, se usa únicamente para obtener nuevos access tokens. Vida larga para no requerir re-login frecuente. Puede revocarse de forma inmediata.
+
+Al revocar tokens de un usuario (logout o ban), se marcan como revocados todos sus refresh tokens. El access token vigente expira en menos de 5 minutos.
 
 ## Setup local
 
@@ -111,8 +121,9 @@ doctl kubernetes cluster kubeconfig save <CLUSTER_ID>
 ### Autenticación (Auth Service)
 | Método | Ruta | Descripción | Request | Response |
 |--------|------|-------------|---------|----------|
-| POST | `/token` | Genera un par de tokens JWT (acceso + refresh) | `{"user_id": "uuid"}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 3600, "refresh_expires_in": 604800}` |
-| POST | `/token/refresh` | Rota el refresh token e emite nuevos tokens | `{"refresh_token": "..."}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 3600, "refresh_expires_in": 604800}` |
+| POST | `/token` | Genera un par de tokens JWT (acceso + refresh) | `{"user_id": "uuid"}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 300, "refresh_expires_in": 604800}` |
+| POST | `/token/refresh` | Rota el refresh token e emite nuevos tokens | `{"refresh_token": "..."}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 300, "refresh_expires_in": 604800}` |
+| DELETE | `/token/{user_id}` | Revoca todos los tokens activos de un usuario (logout / ban) | — | 204 No Content |
 | GET | `/validate` | Valida un access token desde el header Authorization | Header: `Authorization: Bearer <token>` | `{"status": "valid", "user_id": "uuid"}` + header `X-User-ID` |
 
 **Documentación interactiva:**
@@ -166,7 +177,7 @@ Las variables de entorno se deben configurar en el archivo `.env` (copia de `.en
 | `DB_NAME` | string | Nombre de la base de datos | `bazaar_auth` |
 | `SECRET_KEY` | string | Clave secreta para firmar JWTs | `your-secret-key-here` |
 | `JWT_ALGORITHM` | string | Algoritmo de firma JWT | `HS256` |
-| `JWT_EXPIRE_MINUTES` | int | Tiempo de expiración del access token (minutos) | `60` |
+| `JWT_EXPIRE_MINUTES` | int | Tiempo de expiración del access token (minutos) | `5` |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | int | Tiempo de expiración del refresh token (días) | `7` |
 
 ## Kubernetes

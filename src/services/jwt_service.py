@@ -14,6 +14,7 @@ from src.core.config import get_settings
 from src.repositories.refresh_token_repository import (
     create_refresh_token,
     get_refresh_token_by_id,
+    revoke_all_refresh_tokens_for_user,
     revoke_refresh_token,
 )
 
@@ -141,6 +142,11 @@ def rotate_refresh_token(refresh_token: str, db: Session) -> TokenPair:
 
     revoke_refresh_token(db, row)
     return issue_token_pair(user_id, db)
+
+
+def revoke_user_tokens(user_id: UUID, db: Session) -> None:
+    """Revoke all active refresh tokens for a user."""
+    revoke_all_refresh_tokens_for_user(db, str(user_id))
 
 
 def validate_access_token(token: str) -> UUID:
