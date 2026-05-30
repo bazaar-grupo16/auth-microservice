@@ -121,10 +121,10 @@ doctl kubernetes cluster kubeconfig save <CLUSTER_ID>
 ### Autenticación (Auth Service)
 | Método | Ruta | Descripción | Request | Response |
 |--------|------|-------------|---------|----------|
-| POST | `/token` | Genera un par de tokens JWT (acceso + refresh) | `{"user_id": "uuid"}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 300, "refresh_expires_in": 604800}` |
+| POST | `/token` | Genera un par de tokens JWT (acceso + refresh) | `{"user_id": "uuid", "is_admin": false}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 300, "refresh_expires_in": 604800}` |
 | POST | `/token/refresh` | Rota el refresh token e emite nuevos tokens | `{"refresh_token": "..."}` | `{"access_token": "...", "refresh_token": "...", "expires_in": 300, "refresh_expires_in": 604800}` |
 | DELETE | `/token/{user_id}` | Revoca todos los tokens activos de un usuario (logout / ban) | — | 204 No Content |
-| GET | `/validate` | Valida un access token desde el header Authorization | Header: `Authorization: Bearer <token>` | `{"status": "valid", "user_id": "uuid"}` + header `X-User-ID` |
+| GET | `/validate` | Valida un access token desde el header Authorization | Header: `Authorization: Bearer <token>` | `{"status": "valid", "user_id": "uuid"}` + headers `X-User-ID`, `X-Is-Admin` |
 
 **Documentación interactiva:**
 - Swagger UI: `http://localhost:8000/docs`

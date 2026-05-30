@@ -31,7 +31,7 @@ router = APIRouter(tags=["Auth"])
 )
 async def create_token(payload: TokenCreateRequest, db: DbSession) -> TokenCreateResponse:
     """Issue a JWT signed with the service secret key."""
-    tokens = issue_token_pair(payload.user_id, db)
+    tokens = issue_token_pair(payload.user_id, payload.is_admin, db)
     return TokenCreateResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -94,7 +94,7 @@ async def validate_token(authorization: str | None = Header(default=None)) -> JS
         )
 
     try:
-        user_id = validate_access_token(token)
+        claims = validate_access_token(token)
     except TokenValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,6 +103,9 @@ async def validate_token(authorization: str | None = Header(default=None)) -> JS
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={"status": "valid", "user_id": str(user_id)},
-        headers={"X-User-ID": str(user_id)},
+        content={"status": "valid", "user_id": str(claims.user_id)},
+        headers={
+            "X-User-ID": str(claims.user_id),
+            "X-Is-Admin": str(claims.is_admin).lower(),
+        },
     )
