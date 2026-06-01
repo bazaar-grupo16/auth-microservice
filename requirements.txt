@@ -91,3 +91,13 @@ watchfiles==1.1.1
     # via uvicorn
 websockets==16.0
     # via uvicorn
+
+# ── Observability ─────────────────────────────────────
+python-json-logger>=2.0,<3.0
+opentelemetry-distro>=0.46b0
+opentelemetry-exporter-otlp-proto-grpc>=1.25.0
+opentelemetry-exporter-prometheus>=0.46b0
+opentelemetry-instrumentation-fastapi>=0.46b0
+opentelemetry-instrumentation-sqlalchemy>=0.46b0
+opentelemetry-instrumentation-httpx>=0.46b0
+opentelemetry-instrumentation-logging>=0.46b0
