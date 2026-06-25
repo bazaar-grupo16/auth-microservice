@@ -2,13 +2,14 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy.orm import Session
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.refresh_token import RefreshToken
 
 
-def create_refresh_token(
-    db: Session,
+async def create_refresh_token(
+    db: AsyncSession,
     token_id: str,
     user_id: str,
     token_hash: str,
@@ -22,27 +23,31 @@ def create_refresh_token(
         expires_at=expires_at,
     )
     db.add(row)
-    db.commit()
-    db.refresh(row)
+    await db.commit()
+    await db.refresh(row)
     return row
 
 
-def get_refresh_token_by_id(db: Session, token_id: str) -> RefreshToken | None:
+async def get_refresh_token_by_id(db: AsyncSession, token_id: str) -> RefreshToken | None:
     """Fetch a refresh token row by primary key."""
-    return db.get(RefreshToken, token_id)
+    return await db.get(RefreshToken, token_id)
 
 
-def revoke_refresh_token(db: Session, refresh_token: RefreshToken) -> None:
+async def revoke_refresh_token(db: AsyncSession, refresh_token: RefreshToken) -> None:
     """Mark a refresh token row as revoked."""
     refresh_token.revoked_at = datetime.now(timezone.utc)
     db.add(refresh_token)
-    db.commit()
+    await db.commit()
 
 
-def revoke_all_refresh_tokens_for_user(db: Session, user_id: str) -> None:
+async def revoke_all_refresh_tokens_for_user(db: AsyncSession, user_id: str) -> None:
     """Mark all active refresh tokens for a user as revoked."""
-    db.query(RefreshToken).filter(
-        RefreshToken.user_id == user_id,
-        RefreshToken.revoked_at.is_(None),
-    ).update({"revoked_at": datetime.now(timezone.utc)})
-    db.commit()
+    await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(timezone.utc))
+    )
+    await db.commit()

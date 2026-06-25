@@ -4,6 +4,8 @@ annotated-doc==0.0.4
     # via fastapi
 annotated-types==0.7.0
     # via pydantic
+asyncpg==0.30.0
+    # via auth-microservice
 anyio==4.13.0
     # via
     #   httpx

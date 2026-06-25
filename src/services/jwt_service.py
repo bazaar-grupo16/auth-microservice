@@ -8,7 +8,7 @@ from uuid import UUID
 
 import jwt
 from jwt import ExpiredSignatureError, InvalidTokenError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.repositories.refresh_token_repository import (
@@ -77,7 +77,7 @@ def _token_hash(token: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest()
 
 
-def issue_token_pair(user_id: UUID, is_admin: bool, db: Session) -> TokenPair:
+async def issue_token_pair(user_id: UUID, is_admin: bool, db: AsyncSession) -> TokenPair:
     """Issue access and refresh tokens and persist hashed refresh token."""
     settings = get_settings()
     now = datetime.now(timezone.utc)
@@ -103,7 +103,7 @@ def issue_token_pair(user_id: UUID, is_admin: bool, db: Session) -> TokenPair:
         "exp": now + refresh_expires_delta,
     }
     refresh_token = _encode_token(refresh_payload)
-    create_refresh_token(
+    await create_refresh_token(
         db=db,
         token_id=refresh_token_id,
         user_id=str(user_id),
@@ -119,7 +119,7 @@ def issue_token_pair(user_id: UUID, is_admin: bool, db: Session) -> TokenPair:
     )
 
 
-def rotate_refresh_token(refresh_token: str, db: Session) -> TokenPair:
+async def rotate_refresh_token(refresh_token: str, db: AsyncSession) -> TokenPair:
     """Validate and rotate a refresh token, returning a fresh token pair."""
     payload = _decode_token(refresh_token)
 
@@ -142,7 +142,7 @@ def rotate_refresh_token(refresh_token: str, db: Session) -> TokenPair:
 
     is_admin = bool(payload.get("is_admin", False))
 
-    row = get_refresh_token_by_id(db, token_id)
+    row = await get_refresh_token_by_id(db, token_id)
     if row is None:
         raise TokenValidationError("Refresh token is not recognized")
     if row.revoked_at is not None:
@@ -152,13 +152,13 @@ def rotate_refresh_token(refresh_token: str, db: Session) -> TokenPair:
     if row.token_hash != _token_hash(refresh_token):
         raise TokenValidationError("Refresh token is invalid")
 
-    revoke_refresh_token(db, row)
-    return issue_token_pair(user_id, is_admin, db)
+    await revoke_refresh_token(db, row)
+    return await issue_token_pair(user_id, is_admin, db)
 
 
-def revoke_user_tokens(user_id: UUID, db: Session) -> None:
+async def revoke_user_tokens(user_id: UUID, db: AsyncSession) -> None:
     """Revoke all active refresh tokens for a user."""
-    revoke_all_refresh_tokens_for_user(db, str(user_id))
+    await revoke_all_refresh_tokens_for_user(db, str(user_id))
 
 
 def validate_access_token(token: str) -> AccessTokenClaims:

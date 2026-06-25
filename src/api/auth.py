@@ -31,7 +31,7 @@ router = APIRouter(tags=["Auth"])
 )
 async def create_token(payload: TokenCreateRequest, db: DbSession) -> TokenCreateResponse:
     """Issue a JWT signed with the service secret key."""
-    tokens = issue_token_pair(payload.user_id, payload.is_admin, db)
+    tokens = await issue_token_pair(payload.user_id, payload.is_admin, db)
     return TokenCreateResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -48,7 +48,7 @@ async def create_token(payload: TokenCreateRequest, db: DbSession) -> TokenCreat
 async def refresh_token(payload: TokenRefreshRequest, db: DbSession) -> TokenCreateResponse:
     """Rotate refresh token and issue a new access/refresh token pair."""
     try:
-        tokens = rotate_refresh_token(payload.refresh_token, db)
+        tokens = await rotate_refresh_token(payload.refresh_token, db)
     except TokenValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,7 +70,7 @@ async def refresh_token(payload: TokenRefreshRequest, db: DbSession) -> TokenCre
 )
 async def revoke_tokens(user_id: UUID, db: DbSession) -> None:
     """Revoke all active refresh tokens for a user. Called internally on logout or ban."""
-    revoke_user_tokens(user_id, db)
+    await revoke_user_tokens(user_id, db)
 
 
 @router.get(
